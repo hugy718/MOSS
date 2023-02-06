@@ -24,10 +24,8 @@ Run it with openwhisk for testing
 docker tag concurrent-runtime-test dockerHubUser/concurrent-runtime-test:v1
 sudo docker push dockerHubUser/concurrent-runtime-test:v1
 wsk -i action create concurrent-runtime-test-v1 --docker dockerHubUser/concurrent-runtime-test:v1
-wsk -i action invoke concurrent-runtime-test-v1
+wsk -i action invoke concurrent-runtime-test-v1 --result
 ```
-
-retrieve the activation log: `wsk -i activation logs` a sample result is shown [here](#concurrent-runtime-test-log-sample-service)
 
 ## Build and link with worker service
 
