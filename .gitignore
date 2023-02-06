@@ -30,3 +30,19 @@
 *.exe
 *.out
 *.app
+
+## SGX specific
+# edger8r generated files
+Enclave_t.h
+Enclave_t.c
+Enclave_u.h
+Enclave_u.c
+
+# install
+**/install
+
+#tmp
+**/tmp
+
+#dependencies
+models/*/deps
