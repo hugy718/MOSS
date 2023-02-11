@@ -7,10 +7,9 @@
 
 enum KeyServiceRequestType : int {
   USER_REGISTER,
-  UPSERT_WORKER_KEY,
+  ADD_REQUEST_KEY,
   UPSERT_MODEL_KEY,
-  ADD_MODEL_ACCESS_WORKER,
-  ADD_MODEL_ACCESS_USER
+  GRANT_MODEL_ACCESS
 };
 
 struct KeyServiceRequest : public Request {
@@ -38,18 +37,19 @@ struct KeyServiceReply : public Reply {
 
 extern KeyServiceReply DecodeKeyServiceReply(const std::string& reply);
 
-struct UpsertWorkerKeyRequest : public Request {
-  UpsertWorkerKeyRequest(const std::string& mrenclave,
-    const std::string& decrypt_key) : mrenclave_(mrenclave),
+struct AddRequestKeyRequest : public Request {
+  AddRequestKeyRequest(const std::string& model_id, const std::string& mrenclave,
+    const std::string& decrypt_key) : model_id_(model_id), mrenclave_(mrenclave),
     decrypt_key_(decrypt_key) {}
-  ~UpsertWorkerKeyRequest() = default;
+  ~AddRequestKeyRequest() = default;
   std::string EncodeTo() const override;
 
+  std::string model_id_;
   std::string mrenclave_;
   std::string decrypt_key_;
 };
 
-extern UpsertWorkerKeyRequest DecodeUpsertWorkerKeyRequest(
+extern AddRequestKeyRequest DecodeAddRequestKeyRequest(
   const std::string& request);
 
 struct UpsertModelKeyRequest : public Request {
@@ -66,32 +66,19 @@ struct UpsertModelKeyRequest : public Request {
 extern UpsertModelKeyRequest DecodeUpsertModelKeyRequest(
   const std::string& request);
 
-struct AddModelAccessWorker : public Request {
-  AddModelAccessWorker(const std::string& model_id,
-    const std::string& mrenclave) : model_id_(model_id),
-    mrenclave_(mrenclave) {}
-  ~AddModelAccessWorker() = default;
+struct GrantModelAccessRequest : public Request {
+  GrantModelAccessRequest(const std::string& model_id,
+    const std::string& mrenclave, const std::string& user_id)
+    : model_id_(model_id), mrenclave_(mrenclave), user_id_(user_id) {}
+  ~GrantModelAccessRequest() = default;
   std::string EncodeTo() const override;
 
   std::string model_id_;
   std::string mrenclave_;
-};
-
-extern AddModelAccessWorker DecodeAddModelAccessWorker(
-  const std::string& request);
-
-struct AddModelAccessUser : public Request {
-  AddModelAccessUser(const std::string& model_id,
-    const std::string& user_id) : model_id_(model_id),
-    user_id_(user_id) {}
-  ~AddModelAccessUser() = default;
-  std::string EncodeTo() const override;
-
-  std::string model_id_;
   std::string user_id_;
 };
 
-extern AddModelAccessUser DecodeAddModelAccessUser(
+extern GrantModelAccessRequest DecodeGrantModelAccessRequest(
   const std::string& request);
 
 #endif  // SECURE_SERVERLESS_MESSAGE_CLIENTKS_H_

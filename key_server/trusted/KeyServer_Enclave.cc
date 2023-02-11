@@ -120,26 +120,27 @@ struct RequestExecCtx {
   std::string msg;
 };
 
-inline std::string create_user_worker_key (
-  const std::string& user_id, const std::string& mrenclave) {
-    return user_id + "-" + mrenclave;
+inline std::string create_worker_request_key (
+  const std::string& model_id, const std::string& mrenclave,
+  const std::string& user_id) {
+    return model_id + "-" + mrenclave + "-" + user_id;
 }
 
-inline std::string create_model_key (
-  const std::string& user_id, const std::string& model_name) {
-    return user_id + "-" + model_name + "-keyInfo";
+inline bool check_model_id (const std::string& model_id,
+  const std::string& owner_id) {
+  ocall_debug_print_string(std::string("checking model id: " + model_id +" with "
+    + owner_id).c_str());
+  return memcmp(model_id.c_str(), owner_id.c_str(), owner_id.size()) == 0;
 }
 
-// Note the model name should be uploader id + "-" + actual model name.
-// this should be given by model owner to user
-inline std::string create_model_user_access_info_key (
+inline std::string create_model_access_info_key (
   const std::string& model_name) {
-    return model_name + "-userAccessInfo";
+    return model_name + "-AccessInfo";
 }
 
-inline std::string create_model_worker_access_info_key (
-  const std::string& model_name) {
-    return model_name + "-workerAccessInfo";
+inline std::string create_model_acess_info_record (
+  const std::string& mrenclave, const std::string& user_id) {
+  return mrenclave + "-" + user_id;
 }
 
 // true for success load, false if not found or error 
@@ -369,41 +370,44 @@ sgx_status_t enc_client_service(WOLFSSL* ssl, void* store) {
   ocall_debug_print_string(plain_payload.c_str());
 #endif // NDEBUG
   switch (req.type_) {
-    case UPSERT_WORKER_KEY: {
-      UpsertWorkerKeyRequest payload =
-        DecodeUpsertWorkerKeyRequest(plain_payload);
+    // case UPSERT_WORKER_KEY: {
+    case ADD_REQUEST_KEY: {
+      AddRequestKeyRequest payload =
+        DecodeAddRequestKeyRequest(std::move(plain_payload));
       ctx.sgxStatus = handle_upsert_decrypt_key(
-        create_user_worker_key(req.user_id_, payload.mrenclave_),
-        payload.decrypt_key_, store);
+        create_worker_request_key(payload.model_id_, payload.mrenclave_,
+          req.user_id_), payload.decrypt_key_, store);
       break;
     }
     case UPSERT_MODEL_KEY: {
       UpsertModelKeyRequest payload = 
-        DecodeUpsertModelKeyRequest(plain_payload);
-      ctx.sgxStatus = handle_upsert_decrypt_key(
-        create_model_key(req.user_id_, payload.model_id_),
+        DecodeUpsertModelKeyRequest(std::move(plain_payload));
+      if (!check_model_id(payload.model_id_, req.user_id_)) {
+        ctx.request_failure = true;
+        ctx.msg = "model id not binded to the owner id";
+        break;
+      }
+      ctx.sgxStatus = handle_upsert_decrypt_key(payload.model_id_,
         payload.decrypt_key_, store);
       break;
     }
-    case ADD_MODEL_ACCESS_WORKER: {
-      AddModelAccessWorker payload =
-        DecodeAddModelAccessWorker(plain_payload);
+    case GRANT_MODEL_ACCESS: {
+      GrantModelAccessRequest payload =
+        DecodeGrantModelAccessRequest(std::move(plain_payload));
+      if (!check_model_id(payload.model_id_, req.user_id_)) {
+        ctx.request_failure = true;
+        ctx.msg = "model id not binded to the owner id";
+        break;
+      }
       ctx.sgxStatus = handle_append_access_list(
-        create_model_worker_access_info_key(payload.model_id_),
-        payload.mrenclave_, store);
-      break;
-    }
-    case ADD_MODEL_ACCESS_USER: {
-      AddModelAccessUser payload =
-        DecodeAddModelAccessUser(plain_payload);
-      ctx.sgxStatus = handle_append_access_list(
-        create_model_user_access_info_key(payload.model_id_),
-        payload.user_id_, store);
+        create_model_access_info_key(std::move(payload.model_id_)),
+        create_model_acess_info_record(std::move(payload.mrenclave_),
+          std::move(payload.user_id_)),store);
       break;
     }
     default:
       // unkown request type
-      ctx.request_failure = false;
+      ctx.request_failure = true;
       ctx.msg = "unknown request type";
       break;
   }
@@ -498,40 +502,28 @@ sgx_status_t enc_worker_service(WOLFSSL* ssl, void* store) {
 
   // check if user id has access right to the model
   if (!check_permission_in_access_list(
-    create_model_user_access_info_key(req.model_id()),
-    req.user_id(), store, &sgxStatus
+    create_model_access_info_key(req.model_id()),
+    create_model_acess_info_record(mrenclave, req.user_id()),
+    store, &sgxStatus
   )) {
 #ifndef NDEBUG
     ocall_debug_print_string((sgxStatus == SGX_SUCCESS)
-      ? "user not in access list" : "SGX error during check acl");
+      ? "worker-user not in access list" : "SGX error during check acl");
 #endif // NDEBUG
     send_worker_failure_reply(ssl, (sgxStatus == SGX_SUCCESS)
-      ? "user not in access list" : "SGX error during check acl");
-    return sgxStatus;
-  }
-
-  if (!check_permission_in_access_list(
-    create_model_worker_access_info_key(req.model_id()), mrenclave,
-    store, &sgxStatus 
-  )) {
-#ifndef NDEBUG
-    ocall_debug_print_string((sgxStatus == SGX_SUCCESS)
-      ? "worker not in access list" : "SGX error during check acl");
-#endif // NDEBUG
-    send_worker_failure_reply(ssl, (sgxStatus == SGX_SUCCESS)
-      ? "worker not in access list" : "SGX error during check acl");
+      ? "worker-user not in access list" : "SGX error during check acl");
     return sgxStatus;
   }
 
   auto user_decrypt_key = retrieve_decryption_key_for_worker(
-    create_user_worker_key(req.user_id(), mrenclave), store, &sgxStatus);
+    create_worker_request_key(req.model_id(), mrenclave, req.user_id()), store, &sgxStatus);
   if (user_decrypt_key.empty()) {
     send_worker_failure_reply(ssl, "user not found");
     return sgxStatus;
   }
 
   auto model_decrypt_key =  retrieve_decryption_key_for_worker(
-    create_model_key(req.user_id(), req.model_id()), store, &sgxStatus);
+    req.model_id(), store, &sgxStatus);
   if (model_decrypt_key.empty()) {
     send_worker_failure_reply(ssl, "worker not found");
     return sgxStatus;

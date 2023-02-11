@@ -42,6 +42,6 @@
  * @brief force the use of model inside enclave,
  *  when EQUAL_EXEC_TIME is true
  */
-#define PERMITTED_MODEL "mobilenet1.0"
+#define PERMITTED_MODEL "2c984d551a5ababe621790aeb8bdd90bf679ce895f784ab3374ef02528c85b59-mobilenet1.0"
 
 #endif // SECURE_SERVERLESS_MODELS_CONFIG_H_

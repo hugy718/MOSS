@@ -1,7 +1,6 @@
 #include "client_ks.h"
 
 #include <cassert>
-// #include "common/fileutil.h"
 #include "common/json.h"
 
 std::string KeyServiceRequest::EncodeTo() const {
@@ -40,19 +39,21 @@ KeyServiceReply DecodeKeyServiceReply(const std::string& reply) {
     src_json["reply"].ToString()};
 }
 
-std::string UpsertWorkerKeyRequest::EncodeTo() const {
+std::string AddRequestKeyRequest::EncodeTo() const {
   json::JSON ret;
+  ret["model_id"] = model_id_;
   ret["mrenclave"] = mrenclave_;
   ret["decrypt_key"] = decrypt_key_;
   return ret.dump();
 }
 
-UpsertWorkerKeyRequest DecodeUpsertWorkerKeyRequest(
+AddRequestKeyRequest DecodeAddRequestKeyRequest(
   const std::string& request) {
   auto src_json = json::JSON::Load(request);
+  assert(src_json.hasKey("model_id"));
   assert(src_json.hasKey("mrenclave"));
   assert(src_json.hasKey("decrypt_key"));
-  return {src_json["mrenclave"].ToString(),
+  return {src_json["model_id"].ToString(), src_json["mrenclave"].ToString(),
     src_json["decrypt_key"].ToString()};
 }
 
@@ -72,34 +73,21 @@ UpsertModelKeyRequest DecodeUpsertModelKeyRequest(
     src_json["decrypt_key"].ToString()};
 }
 
-std::string AddModelAccessWorker::EncodeTo() const {
+std::string GrantModelAccessRequest::EncodeTo() const {
   json::JSON ret;
   ret["model_id"] = model_id_;
   ret["mrenclave"] = mrenclave_;
-  return ret.dump();
-}
-
-AddModelAccessWorker DecodeAddModelAccessWorker(
-  const std::string& request) {
-  auto src_json = json::JSON::Load(request);
-  assert(src_json.hasKey("model_id"));
-  assert(src_json.hasKey("mrenclave"));
-  return {src_json["model_id"].ToString(),
-    src_json["mrenclave"].ToString()};
-}
-
-std::string AddModelAccessUser::EncodeTo() const {
-  json::JSON ret;
-  ret["model_id"] = model_id_;
   ret["user_id"] = user_id_;
   return ret.dump();
 }
 
-AddModelAccessUser DecodeAddModelAccessUser(
+GrantModelAccessRequest DecodeGrantModelAccessRequest(
   const std::string& request) {
   auto src_json = json::JSON::Load(request);
   assert(src_json.hasKey("model_id"));
+  assert(src_json.hasKey("mrenclave"));
   assert(src_json.hasKey("user_id"));
   return {src_json["model_id"].ToString(),
+    src_json["mrenclave"].ToString(),
     src_json["user_id"].ToString()};
 }
