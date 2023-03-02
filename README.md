@@ -136,14 +136,13 @@ Then update the access information with [client](docker/client/README.md).
 ./client register_req.json client_config.json
 # specify the model decryption key
 ./client up_model_key_req.json client_config.json
-# (the two granting access step will be combined)
-# grant the user access to the model 
-./client add_model_user_req.json client_config.json
-# grant the worker with specific enclave identity to the model
-./client add_model_worker_req.json client_config.json
+# grant the user and worker access to the model 
+./client grant_model_access_req.json client_config.json
 # specify the input decryption key for the worker to use
-./client up_worker_key_req.json client_config.json
+./client add_request_key_req.json client_config.json
 ```
+
+Please find the sample requests and the model in [examples](examples)
 
 ## Deploy a MossRT for a model
 
